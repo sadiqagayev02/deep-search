@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Axtarış Sistemi</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <style>
+        .search-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 15px 0;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+
+        .search-options label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: white;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .search-options input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .loading {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.8);
+            padding: 20px;
+            font-style: italic;
+        }
+
+        .result-item {
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .result-item:hover {
+            transform: scale(1.02);
+        }
+
+        .page-number {
+            display: inline-block;
+            background-color: rgba(67, 97, 238, 0.2);
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-weight: bold;
+            color: white;
+            margin-right: 8px;
+        }
+
+        /* PDF səhifə görünüşü üçün yeni stil */
+        .pdf-page-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .pdf-page-content {
+            background-color: white;
+            max-width: 800px;
+            max-height: 90vh;
+            margin: 20px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: auto;
+        }
+
+        .pdf-page-header {
+            position: sticky;
+            top: 0;
+            padding: 15px;
+            background-color: #4361ee;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1;
+        }
+
+        .pdf-page-close {
+            cursor: pointer;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .pdf-page-navigation {
+            position: sticky;
+            bottom: 0;
+            padding: 10px;
+            background-color: #f5f5f5;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .pdf-page-btn {
+            padding: 8px 15px;
+            background-color: #4361ee;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .pdf-page-btn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .pdf-page-info {
+            color: #666;
+            font-size: 14px;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap');
+
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --accent-color: #4895ef;
+            --text-color: #2b2d42;
+            --light-color: #f8f9fa;
+            --glass-color: rgba(255, 255, 255, 0.25);
+            --glass-border: 1px solid rgba(255, 255, 255, 0.18);
+            --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background: linear-gradient(135deg, #3dc3f4 0%, #ee50ff 100%);
+            min-height: 100vh;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        .background-blur {
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            right: -50%;
+            bottom: -50%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 60%);
+            z-index: -1;
+            animation: rotate 20s linear infinite;
+        }
+
+        @keyframes rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 30px auto;
+            padding: 30px;
+            border-radius: 16px;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            background: var(--glass-color);
+            border: var(--glass-border);
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+        }
+
+        .glass-card {
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            background: var(--glass-color);
+            border: var(--glass-border);
+        }
+
+        h1, h2 {
+            color: var(--light-color);
+            text-align: center;
+            margin-bottom: 20px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 600;
+        }
+
+        h2 {
+            font-size: 1.8rem;
+            margin-top: 30px;
+        }
+
+        .upload-section {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .upload-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 24px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: var(--light-color);
+            font-weight: 500;
+            border: 1px dashed rgba(255, 255, 255, 0.4);
+        }
+
+        .upload-label:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .upload-label svg {
+            transition: transform 0.3s ease;
+        }
+
+        .upload-label:hover svg {
+            transform: translateY(-3px);
+        }
+
+        #pdf-upload {
+            display: none;
+        }
+
+        .search-section {
+            margin-bottom: 30px;
+        }
+
+        .search-input-container {
+            position: relative;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .search-input-container svg {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--light-color);
+            opacity: 0.8;
+        }
+
+        #search-input {
+            width: 100%;
+            padding: 15px 15px 15px 45px;
+            border: none;
+            border-radius: 50px;
+            background: rgba(255, 255, 255, 0.2);
+            color: var(--light-color);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+
+        #search-input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        #search-input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+        }
+
+        #results-container {
+            margin-top: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        #results-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #results-container::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        #results-container::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+        }
+
+        #results-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .result-item {
+            margin-bottom: 20px;
+            padding: 20px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .result-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-3px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .result-item h3 {
+            margin-top: 0;
+            color: var(--light-color);
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+
+        .result-item p {
+            margin-bottom: 10px;
+            color: rgba(255, 255, 255, 0.9);
+            line-height: 1.7;
+        }
+
+        .highlight {
+            background-color: rgba(255, 235, 59, 0.5);
+            font-weight: bold;
+            padding: 0 2px;
+            border-radius: 3px;
+            color: #fff;
+        }
+        .pdf-page-content {
+    max-width: 90%;
+    max-height: 90vh;
+    overflow: auto;
+    background: white;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+}
+
+#pdf-viewer-body {
+    padding: 20px;
+    text-align: center;
+}
+
+#pdf-viewer-body canvas {
+    max-width: 100%;
+    height: auto;
+    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+}
+
+        .no-results {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1.1rem;
+            padding: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+                margin: 20px auto;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            h2 {
+                font-size: 1.5rem;
+            }
+            
+            .upload-label {
+                padding: 10px 20px;
+                font-size: 0.9rem;
+            }
+            
+            #search-input {
+                padding: 12px 12px 12px 40px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="background-blur"></div>
+    <div class="container glass-card">
+        <h1>PDF Axtarış Sistemi</h1>
+
+        <div class="search-options">
+            <label><input type="checkbox" id="exact-match"> Dəqiq uyğunluq</label>
+            <label><input type="checkbox" id="word-order" checked> Söz sırası</label>
+            <label><input type="checkbox" id="stemming" checked> Kökə görə axtar</label>
+            <label><input type="checkbox" id="operators"> Axtarış operatorları (AND, OR, NOT)</label>
+        </div>
+        
+        <div class="upload-section">
+            <label for="pdf-upload" class="upload-label">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <span>PDF Fayl(lar) Seçin</span>
+                <input type="file" id="pdf-upload" accept=".pdf" multiple>
+            </label>
+        </div>
+        
+        <div class="search-section">
+            <div class="search-input-container">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="search-input" placeholder="Axtarış ifadəsini daxil edin..." autocomplete="off">
+            </div>
+        </div>
+        
+        <div class="results-section">
+            <h2>Axtarış Nəticələri</h2>
+            <div id="results-container"></div>
+        </div>
+    </div>
+
+    <!-- PDF səhifə görünüşü -->
+    <div class="pdf-page-container" id="pdf-viewer">
+        <div class="pdf-page-content">
+            <div class="pdf-page-header">
+                <span id="pdf-viewer-title">PDF Səhifə</span>
+                <span class="pdf-page-close" id="pdf-viewer-close">&times;</span>
+            </div>
+            <div id="pdf-viewer-body"></div>
+            <div class="pdf-page-navigation">
+                <button class="pdf-page-btn" id="prev-page">Əvvəlki</button>
+                <span class="pdf-page-info" id="page-info">Səhifə 1 / 1</span>
+                <button class="pdf-page-btn" id="next-page">Növbəti</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // PDF.js worker path
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
+
+        let pdfDocuments = [];
+        let searchResults = [];
+        let searchTimeout = null;
+        let searchOptions = {
+            exactMatch: false,
+            wordOrder: true,
+            useStemming: true,
+            searchOperators: true
+        };
+
+        // PDF səhifə görünüşü üçün dəyişənlər
+        let currentPdfDoc = null;
+        let currentPageNum = 1;
+        let currentPdfName = "";
+
+        // HTML elementləri
+        const searchInput = document.getElementById('search-input');
+        const resultsContainer = document.getElementById('results-container');
+        const exactMatchCheckbox = document.getElementById('exact-match');
+        const wordOrderCheckbox = document.getElementById('word-order');
+        const stemmingCheckbox = document.getElementById('stemming');
+        const operatorsCheckbox = document.getElementById('operators');
+        const pdfViewer = document.getElementById('pdf-viewer');
+        const pdfViewerBody = document.getElementById('pdf-viewer-body');
+        const pdfViewerTitle = document.getElementById('pdf-viewer-title');
+        const pdfViewerClose = document.getElementById('pdf-viewer-close');
+        const prevPageBtn = document.getElementById('prev-page');
+        const nextPageBtn = document.getElementById('next-page');
+        const pageInfo = document.getElementById('page-info');
+
+        // Event listeners
+        document.getElementById('pdf-upload').addEventListener('change', handleUpload);
+        searchInput.addEventListener('input', handleSearchInput);
+        exactMatchCheckbox.addEventListener('change', updateSearchOptions);
+        wordOrderCheckbox.addEventListener('change', updateSearchOptions);
+        stemmingCheckbox.addEventListener('change', updateSearchOptions);
+        operatorsCheckbox.addEventListener('change', updateSearchOptions);
+        pdfViewerClose.addEventListener('click', closePdfViewer);
+        prevPageBtn.addEventListener('click', goToPrevPage);
+        nextPageBtn.addEventListener('click', goToNextPage);
+
+        // Səhifə naviqasiyası üçün klaviatura əmrləri
+        document.addEventListener('keydown', function(e) {
+            if (pdfViewer.style.display === 'flex') {
+                if (e.key === 'ArrowLeft') {
+                    goToPrevPage();
+                } else if (e.key === 'ArrowRight') {
+                    goToNextPage();
+                } else if (e.key === 'Escape') {
+                    closePdfViewer();
+                }
+            }
+        });
+
+        function updateSearchOptions() {
+            searchOptions = {
+                exactMatch: exactMatchCheckbox.checked,
+                wordOrder: wordOrderCheckbox.checked,
+                useStemming: stemmingCheckbox.checked,
+                searchOperators: operatorsCheckbox.checked
+            };
+            
+            if (searchInput.value.trim() !== '') {
+                handleSearchInput({ target: searchInput });
+            }
+        }
+
+        async function handleUpload(event) {
+            const files = event.target.files;
+            
+            if (files.length === 0) return;
+            
+            pdfDocuments = [];
+            resultsContainer.innerHTML = '<div class="loading">PDF fayl(lar) yüklənir...</div>';
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const arrayBuffer = await file.arrayBuffer();
+                
+                try {
+                    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                    pdfDocuments.push({
+                        name: file.name,
+                        document: pdf,
+                        file: file
+                    });
+                } catch (error) {
+                    console.error(`Error loading PDF ${file.name}:`, error);
+                }
+            }
+            
+            if (searchInput.value.trim() !== '') {
+                performSearch(searchInput.value.trim());
+            } else {
+                resultsContainer.innerHTML = '<p class="no-results">PDF fayl(lar) uğurla yükləndi. Axtarış etmək üçün yuxarıda yazın.</p>';
+            }
+        }
+
+        function handleSearchInput(event) {
+            const query = event.target.value.trim();
+            clearTimeout(searchTimeout);
+            
+            if (query === '') {
+                resultsContainer.innerHTML = '<p class="no-results">Axtarış nəticələri burada görünəcək</p>';
+                return;
+            }
+            
+            if (pdfDocuments.length === 0) {
+                resultsContainer.innerHTML = '<p class="no-results">Zəhmət olmasa əvvəlcə PDF fayl(lar) yükləyin</p>';
+                return;
+            }
+            
+            resultsContainer.innerHTML = '<div class="loading">Axtarılır...</div>';
+            
+            searchTimeout = setTimeout(() => performSearch(query), 300);
+        }
+
+        async function performSearch(query) {
+            searchResults = [];
+            
+            for (const pdfItem of pdfDocuments) {
+                const results = await searchInPdf(pdfItem.document, query);
+                if (results.length > 0) {
+                    searchResults.push({
+                        pdfName: pdfItem.name,
+                        pdfFile: pdfItem.file,
+                        results: results
+                    });
+                }
+            }
+            
+            displayResults();
+        }
+
+        async function searchInPdf(pdf, query) {
+            const results = [];
+            
+            if (searchOptions.searchOperators && hasSearchOperators(query)) {
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => item.str).join(' ');
+                    
+                    if (evaluateSearchExpression(pageText, query)) {
+                        results.push({
+                            page: pageNum,
+                            context: getContext(pageText, query)
+                        });
+                    }
+                }
+            } else {
+                const normalizedQuery = normalizeText(query);
+                const queryWords = normalizedQuery.split(/\s+/).filter(word => word.length > 0);
+                
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => item.str).join(' ');
+                    const normalizedPageText = normalizeText(pageText);
+                    
+                    if (searchOptions.exactMatch) {
+                        if (normalizedPageText.includes(normalizedQuery)) {
+                            results.push({
+                                page: pageNum,
+                                context: getContext(pageText, query)
+                            });
+                        }
+                    } else {
+                        const matched = advancedMatch(normalizedPageText, queryWords);
+                        if (matched) {
+                            results.push({
+                                page: pageNum,
+                                context: getContext(pageText, query)
+                            });
+                        }
+                    }
+                }
+            }
+            
+            return results;
+        }
+
+        function hasSearchOperators(query) {
+            return /(\bAND\b|\bOR\b|\bNOT\b|\(|\))/i.test(query);
+        }
+
+        function evaluateSearchExpression(text, expression) {
+            const normalizedText = normalizeText(text);
+            const tokens = tokenizeExpression(expression);
+            return evaluateTokens(normalizedText, tokens);
+        }
+
+        function tokenizeExpression(expression) {
+            const tokens = [];
+            const regex = /(AND|OR|NOT|\(|\)|\"[^\"]+\"|\S+)/gi;
+            let match;
+            
+            while ((match = regex.exec(expression)) !== null) {
+                tokens.push(match[1].toUpperCase());
+            }
+            
+            return tokens;
+        }
+
+        function evaluateTokens(text, tokens) {
+            let index = 0;
+            
+            function parseExpression() {
+                let left = parseTerm();
+                
+                while (index < tokens.length && (tokens[index] === 'AND' || tokens[index] === 'OR')) {
+                    const operator = tokens[index++];
+                    const right = parseTerm();
+                    
+                    if (operator === 'AND') {
+                        left = left && right;
+                    } else {
+                        left = left || right;
+                    }
+                }
+                
+                return left;
+            }
+            
+            function parseTerm() {
+                if (tokens[index] === 'NOT') {
+                    index++;
+                    return !parseFactor();
+                }
+                
+                return parseFactor();
+            }
+            
+            function parseFactor() {
+                if (tokens[index] === '(') {
+                    index++;
+                    const result = parseExpression();
+                    if (tokens[index] !== ')') throw new Error("Expected )");
+                    index++;
+                    return result;
+                }
+                
+                const token = tokens[index++];
+                if (token.startsWith('"') && token.endsWith('"')) {
+                    const phrase = normalizeText(token.slice(1, -1));
+                    return text.includes(phrase);
+                } else {
+                    const word = normalizeText(token);
+                    return text.includes(word);
+                }
+            }
+            
+            return parseExpression();
+        }
+
+        function advancedMatch(text, queryWords) {
+            if (searchOptions.wordOrder) {
+                const regex = new RegExp(queryWords.join(searchOptions.useStemming ? '\\b.*?\\b' : '.*?'), 'i');
+                return regex.test(text);
+            } else {
+                const requiredMatches = Math.ceil(queryWords.length * 0.6);
+                let matches = 0;
+                
+                for (const word of queryWords) {
+                    const stemmedWord = searchOptions.useStemming ? getStem(word) : word;
+                    const regex = new RegExp(`\\b${stemmedWord}\\b`, 'i');
+                    if (regex.test(text)) matches++;
+                }
+                
+                return matches >= requiredMatches;
+            }
+        }
+
+        function getStem(word) {
+            if (word.length < 4) return word;
+            
+            const suffixes = [
+                'lar', 'lər', 'dan', 'dən', 'tan', 'tən', 
+                'da', 'də', 'ta', 'tə', 'a', 'ə', 'ı', 'i', 'u', 'ü'
+            ];
+            
+            for (const suffix of suffixes) {
+                if (word.endsWith(suffix)) {
+                    return word.slice(0, -suffix.length);
+                }
+            }
+            
+            return word;
+        }
+
+        function normalizeText(text) {
+            return text.toLowerCase()
+                .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '')
+                .replace(/\s{2,}/g, ' ')
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        }
+
+        function getContext(fullText, query) {
+            const sentences = fullText.split(/[.!?]+/);
+            
+            for (const sentence of sentences) {
+                if (searchOptions.searchOperators && hasSearchOperators(query)) {
+                    if (evaluateSearchExpression(sentence, query)) {
+                        return highlightMatches(sentence, query);
+                    }
+                } else {
+                    const normalizedSentence = normalizeText(sentence);
+                    const normalizedQuery = normalizeText(query);
+                    const queryWords = normalizedQuery.split(/\s+/);
+                    
+                    if (searchOptions.exactMatch) {
+                        if (normalizedSentence.includes(normalizedQuery)) {
+                            return highlightMatches(sentence, query);
+                        }
+                    } else if (advancedMatch(normalizedSentence, queryWords)) {
+                        return highlightMatches(sentence, query);
+                    }
+                }
+            }
+            
+            const index = findBestMatchPosition(fullText, query);
+            if (index !== -1) {
+                const start = Math.max(0, index - 50);
+                const end = Math.min(fullText.length, index + query.length + 50);
+                return '...' + highlightMatches(fullText.substring(start, end), query) + '...';
+            }
+            
+            return highlightMatches(fullText.substring(0, 150), query) + '...';
+        }
+
+        function findBestMatchPosition(text, query) {
+            if (searchOptions.exactMatch) {
+                return text.toLowerCase().indexOf(query.toLowerCase());
+            }
+            
+            const queryWords = normalizeText(query).split(/\s+/);
+            let bestIndex = -1;
+            let maxMatches = 0;
+            
+            for (let i = 0; i < text.length; i++) {
+                let matches = 0;
+                const substring = normalizeText(text.substr(i, query.length * 3));
+                
+                for (const word of queryWords) {
+                    if (substring.includes(word)) {
+                        matches++;
+                    }
+                }
+                
+                if (matches > maxMatches) {
+                    maxMatches = matches;
+                    bestIndex = i;
+                }
+            }
+            
+            return bestIndex;
+        }
+
+        function highlightMatches(text, query) {
+            if (searchOptions.searchOperators && hasSearchOperators(query)) {
+                const tokens = tokenizeExpression(query);
+                let result = text;
+                
+                for (const token of tokens) {
+                    if (!['AND', 'OR', 'NOT', '(', ')'].includes(token)) {
+                        const cleanToken = token.replace(/"/g, '');
+                        const regex = new RegExp(`(${escapeRegExp(cleanToken)})`, 'gi');
+                        result = result.replace(regex, '<span class="highlight">$1</span>');
+                    }
+                }
+                
+                return result;
+            } else {
+                const queryWords = query.split(/\s+/);
+                let result = text;
+                
+                for (const word of queryWords) {
+                    const regex = new RegExp(`(${escapeRegExp(word)})`, 'gi');
+                    result = result.replace(regex, '<span class="highlight">$1</span>');
+                }
+                
+                return result;
+            }
+        }
+
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        function displayResults() {
+            if (searchResults.length === 0) {
+                resultsContainer.innerHTML = '<p class="no-results">Axtarış nəticələri tapılmadı</p>';
+                return;
+            }
+            
+            let html = '';
+            
+            for (const pdfResult of searchResults) {
+                html += `<h3>${pdfResult.pdfName}</h3>`;
+                
+                for (const result of pdfResult.results) {
+                    html += `
+                        <div class="result-item" data-pdf-name="${pdfResult.pdfName}" data-page="${result.page}">
+                            <p><span class="page-number">Səhifə ${result.page}</span></p>
+                            <p>${result.context}</p>
+                        </div>
+                    `;
+                }
+            }
+            
+            resultsContainer.innerHTML = html;
+            
+            document.querySelectorAll('.result-item').forEach(item => {
+                item.addEventListener('click', async function() {
+                    const pdfName = this.getAttribute('data-pdf-name');
+                    const pageNum = parseInt(this.getAttribute('data-page'));
+                    const pdfItem = searchResults.find(item => item.pdfName === pdfName);
+                    if (!pdfItem) return;
+                    
+                    await openPdfPage(pdfItem.pdfFile, pageNum, pdfName);
+                });
+            });
+        }
+
+        async function openPdfPage(pdfFile, pageNum, pdfName) {
+            currentPdfName = pdfName;
+            currentPageNum = pageNum;
+            
+            const arrayBuffer = await pdfFile.arrayBuffer();
+            currentPdfDoc = await pdfjsLib.getDocument(arrayBuffer).promise;
+            
+            pdfViewerTitle.textContent = `${pdfName} - Səhifə ${pageNum}`;
+            await renderPage(pageNum);
+            pdfViewer.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
+        async function renderPage(pageNum) {
+    pdfViewerBody.innerHTML = '';
+    const page = await currentPdfDoc.getPage(pageNum);
+    
+    // Ekran ölçüsünə uyğun scale hesablanması
+    const viewport = page.getViewport({ 
+        scale: Math.min(
+            window.innerWidth / page.getViewport({ scale: 1 }).width,
+            window.innerHeight / page.getViewport({ scale: 1 }).height
+        ) * 0.9 // 90% ekran ölçüsü
+    });
+    
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    
+    // Yüksək keyfiyyət üçün canvas ölçüləri
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+    canvas.style.width = '100%';
+    canvas.style.height = 'auto';
+    
+    // Yüksək DPI dəstəyi
+    const outputScale = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(viewport.width * outputScale);
+    canvas.height = Math.floor(viewport.height * outputScale);
+    context.scale(outputScale, outputScale);
+    
+    pdfViewerBody.appendChild(canvas);
+    
+    await page.render({
+        canvasContext: context,
+        viewport: viewport,
+        intent: 'print' // Yüksək keyfiyyətli render
+    }).promise;
+    
+    pageInfo.textContent = `Səhifə ${pageNum} / ${currentPdfDoc.numPages}`;
+    prevPageBtn.disabled = pageNum <= 1;
+    nextPageBtn.disabled = pageNum >= currentPdfDoc.numPages;
+}
+
+        function goToPrevPage() {
+            if (currentPageNum > 1) {
+                currentPageNum--;
+                renderPage(currentPageNum);
+            }
+        }
+
+        function goToNextPage() {
+            if (currentPageNum < currentPdfDoc.numPages) {
+                currentPageNum++;
+                renderPage(currentPageNum);
+            }
+        }
+
+        function closePdfViewer() {
+            pdfViewer.style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+    </script>
+</body>
+</html>
