@@ -1,960 +1,759 @@
 <!DOCTYPE html>
-<html lang="az">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Axtarış Sistemi</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
-    <style>
-        .search-options {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            margin: 15px 0;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-        }
-
-        .search-options label {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            color: white;
-            font-size: 0.9rem;
-            cursor: pointer;
-        }
-
-        .search-options input[type="checkbox"] {
-            width: 16px;
-            height: 16px;
-            cursor: pointer;
-        }
-
-        .loading {
-            text-align: center;
-            color: rgba(255, 255, 255, 0.8);
-            padding: 20px;
-            font-style: italic;
-        }
-
-        .result-item {
-            cursor: pointer;
-            transition: transform 0.2s ease;
-        }
-
-        .result-item:hover {
-            transform: scale(1.02);
-        }
-
-        .page-number {
-            display: inline-block;
-            background-color: rgba(67, 97, 238, 0.2);
-            padding: 3px 8px;
-            border-radius: 12px;
-            font-weight: bold;
-            color: white;
-            margin-right: 8px;
-        }
-
-        /* PDF səhifə görünüşü üçün yeni stil */
-        .pdf-page-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.9);
-            z-index: 1000;
-            display: none;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .pdf-page-content {
-            background-color: white;
-            max-width: 800px;
-            max-height: 90vh;
-            margin: 20px;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-            position: relative;
-            overflow: auto;
-        }
-
-        .pdf-page-header {
-            position: sticky;
-            top: 0;
-            padding: 15px;
-            background-color: #4361ee;
-            color: white;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            z-index: 1;
-        }
-
-        .pdf-page-close {
-            cursor: pointer;
-            font-size: 24px;
-            font-weight: bold;
-        }
-
-        .pdf-page-navigation {
-            position: sticky;
-            bottom: 0;
-            padding: 10px;
-            background-color: #f5f5f5;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .pdf-page-btn {
-            padding: 8px 15px;
-            background-color: #4361ee;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        .pdf-page-btn:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-
-        .pdf-page-info {
-            color: #666;
-            font-size: 14px;
-        }
-
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap');
-
-        :root {
-            --primary-color: #4361ee;
-            --secondary-color: #3f37c9;
-            --accent-color: #4895ef;
-            --text-color: #2b2d42;
-            --light-color: #f8f9fa;
-            --glass-color: rgba(255, 255, 255, 0.25);
-            --glass-border: 1px solid rgba(255, 255, 255, 0.18);
-            --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Poppins', sans-serif;
-            line-height: 1.6;
-            color: var(--text-color);
-            background: linear-gradient(135deg, #3dc3f4 0%, #ee50ff 100%);
-            min-height: 100vh;
-            padding: 20px;
-            overflow-x: hidden;
-        }
-
-        .background-blur {
-            position: fixed;
-            top: -50%;
-            left: -50%;
-            right: -50%;
-            bottom: -50%;
-            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 60%);
-            z-index: -1;
-            animation: rotate 20s linear infinite;
-        }
-
-        @keyframes rotate {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .container {
-            max-width: 1000px;
-            margin: 30px auto;
-            padding: 30px;
-            border-radius: 16px;
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            background: var(--glass-color);
-            border: var(--glass-border);
-            box-shadow: var(--shadow);
-            transition: all 0.3s ease;
-        }
-
-        .glass-card {
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            background: var(--glass-color);
-            border: var(--glass-border);
-        }
-
-        h1, h2 {
-            color: var(--light-color);
-            text-align: center;
-            margin-bottom: 20px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        h1 {
-            font-size: 2.5rem;
-            font-weight: 600;
-        }
-
-        h2 {
-            font-size: 1.8rem;
-            margin-top: 30px;
-        }
-
-        .upload-section {
-            margin-bottom: 30px;
-            text-align: center;
-        }
-
-        .upload-label {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            padding: 12px 24px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 50px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            color: var(--light-color);
-            font-weight: 500;
-            border: 1px dashed rgba(255, 255, 255, 0.4);
-        }
-
-        .upload-label:hover {
-            background: rgba(255, 255, 255, 0.3);
-            transform: translateY(-2px);
-        }
-
-        .upload-label svg {
-            transition: transform 0.3s ease;
-        }
-
-        .upload-label:hover svg {
-            transform: translateY(-3px);
-        }
-
-        #pdf-upload {
-            display: none;
-        }
-
-        .search-section {
-            margin-bottom: 30px;
-        }
-
-        .search-input-container {
-            position: relative;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        .search-input-container svg {
-            position: absolute;
-            left: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--light-color);
-            opacity: 0.8;
-        }
-
-        #search-input {
-            width: 100%;
-            padding: 15px 15px 15px 45px;
-            border: none;
-            border-radius: 50px;
-            background: rgba(255, 255, 255, 0.2);
-            color: var(--light-color);
-            font-size: 1rem;
-            transition: all 0.3s ease;
-            backdrop-filter: blur(5px);
-        }
-
-        #search-input::placeholder {
-            color: rgba(255, 255, 255, 0.7);
-        }
-
-        #search-input:focus {
-            outline: none;
-            background: rgba(255, 255, 255, 0.3);
-            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
-        }
-
-        #results-container {
-            margin-top: 20px;
-            max-height: 500px;
-            overflow-y: auto;
-            padding-right: 10px;
-        }
-
-        #results-container::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        #results-container::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-        }
-
-        #results-container::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 10px;
-        }
-
-        #results-container::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.5);
-        }
-
-        .result-item {
-            margin-bottom: 20px;
-            padding: 20px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transition: all 0.3s ease;
-        }
-
-        .result-item:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: translateY(-3px);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        }
-
-        .result-item h3 {
-            margin-top: 0;
-            color: var(--light-color);
-            font-size: 1.2rem;
-            margin-bottom: 10px;
-        }
-
-        .result-item p {
-            margin-bottom: 10px;
-            color: rgba(255, 255, 255, 0.9);
-            line-height: 1.7;
-        }
-
-        .highlight {
-            background-color: rgba(255, 235, 59, 0.5);
-            font-weight: bold;
-            padding: 0 2px;
-            border-radius: 3px;
-            color: #fff;
-        }
-        .pdf-page-content {
-    max-width: 90%;
-    max-height: 90vh;
-    overflow: auto;
-    background: white;
-    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    <title>Premium PDF Analiz Sistemi</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<style>
+    :root {
+    --primary-color: #6a11cb;
+    --secondary-color: #2575fc;
+    --accent-color: #ff8a00;
+    --light-color: #f8f9fa;
+    --dark-color: #343a40;
+    --success-color: #28a745;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
 
-#pdf-viewer-body {
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    min-height: 100vh;
+    color: var(--dark-color);
+}
+
+.premium-container {
+    max-width: 1200px;
+    margin: 0 auto;
     padding: 20px;
+}
+
+.premium-header {
+    text-align: center;
+    margin-bottom: 40px;
+    padding: 20px;
+    background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+    color: white;
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+}
+
+.premium-header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+}
+
+.premium-header p {
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+.main-content {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.upload-section {
+    background-color: white;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: var(--shadow);
     text-align: center;
 }
 
-#pdf-viewer-body canvas {
-    max-width: 100%;
-    height: auto;
-    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+.dropzone {
+    border: 3px dashed #ddd;
+    border-radius: 8px;
+    padding: 40px;
+    cursor: pointer;
+    transition: all 0.3s;
 }
 
-        .no-results {
-            text-align: center;
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 1.1rem;
-            padding: 20px;
-        }
+.dropzone:hover {
+    border-color: var(--primary-color);
+    background-color: rgba(106, 17, 203, 0.05);
+}
 
-        @media (max-width: 768px) {
-            .container {
-                padding: 20px;
-                margin: 20px auto;
-            }
-            
-            h1 {
-                font-size: 2rem;
-            }
-            
-            h2 {
-                font-size: 1.5rem;
-            }
-            
-            .upload-label {
-                padding: 10px 20px;
-                font-size: 0.9rem;
-            }
-            
-            #search-input {
-                padding: 12px 12px 12px 40px;
-                font-size: 0.9rem;
-            }
-        }
-    </style>
-</head>
+.dropzone i {
+    color: var(--primary-color);
+    margin-bottom: 15px;
+}
+
+.dropzone p {
+    font-size: 1.1rem;
+    color: var(--dark-color);
+    margin-bottom: 15px;
+}
+
+#fileInput {
+    display: none;
+}
+
+.progress-container {
+    margin-top: 20px;
+    display: none;
+}
+
+.progress-bar {
+    height: 10px;
+    background-color: #e9ecef;
+    border-radius: 5px;
+    overflow: hidden;
+    margin-bottom: 5px;
+}
+
+.progress-bar div {
+    height: 100%;
+    background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+    width: 0%;
+    transition: width 0.3s;
+}
+
+.analysis-section, .qa-section {
+    background-color: white;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    display: none;
+}
+
+.stats-container {
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin: 30px 0;
+}
+
+.stat-box {
+    flex: 1;
+    min-width: 150px;
+    text-align: center;
+    padding: 20px;
+    background: linear-gradient(135deg, #f6f7f9 0%, #e9ebee 100%);
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.stat-value {
+    font-size: 2.5rem;
+    font-weight: bold;
+    background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: block;
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 1rem;
+    color: var(--dark-color);
+    opacity: 0.7;
+}
+
+.summary-box {
+    background-color: #f8f9fa;
+    border-left: 4px solid var(--primary-color);
+    padding: 20px;
+    border-radius: 0 8px 8px 0;
+    margin-top: 20px;
+}
+
+.chat-container {
+    margin-top: 20px;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.chat-messages {
+    height: 400px;
+    overflow-y: auto;
+    padding: 20px;
+    background-color: #f9f9f9;
+}
+
+.message {
+    margin-bottom: 15px;
+    padding: 12px 15px;
+    border-radius: 8px;
+    max-width: 80%;
+    word-wrap: break-word;
+}
+
+.user-message {
+    background-color: var(--primary-color);
+    color: white;
+    margin-left: auto;
+    border-bottom-right-radius: 2px;
+}
+
+.bot-message {
+    background-color: white;
+    border: 1px solid #eee;
+    margin-right: auto;
+    border-bottom-left-radius: 2px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.citation {
+    font-size: 0.8rem;
+    color: #666;
+    margin-top: 5px;
+    font-style: italic;
+}
+
+.chat-input {
+    display: flex;
+    padding: 15px;
+    background-color: white;
+    border-top: 1px solid #eee;
+}
+
+#questionInput {
+    flex: 1;
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px 0 0 4px;
+    font-size: 1rem;
+    outline: none;
+}
+
+#questionInput:focus {
+    border-color: var(--primary-color);
+}
+
+#askButton {
+    padding: 12px 20px;
+    background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+    color: white;
+    border: none;
+    border-radius: 0 4px 4px 0;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.3s;
+}
+
+#askButton:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.premium-footer {
+    text-align: center;
+    margin-top: 40px;
+    padding: 20px;
+    color: var(--dark-color);
+    opacity: 0.7;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+    .premium-header h1 {
+        font-size: 2rem;
+    }
+    
+    .stats-container {
+        flex-direction: column;
+    }
+    
+    .stat-box {
+        min-width: 100%;
+    }
+}
+/* Premium rejim üçün üslublar */
+.premium-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+  color: #6a11cb;
+  font-weight: bold;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: #6a11cb;
+}
+
+input:checked + .slider:before {
+  transform: translateX(26px);
+}
+
+/* Cavab üslubları */
+.message.premium {
+  border-left: 4px solid #6a11cb;
+  background: rgba(106, 17, 203, 0.05);
+}
+
+.correct-answer, .explanation, .citation {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.correct-answer {
+  background: rgba(40, 167, 69, 0.1);
+  border-left: 3px solid #28a745;
+}
+
+.explanation {
+  background: rgba(255, 193, 7, 0.1);
+  border-left: 3px solid #ffc107;
+}
+
+.citation {
+  background: rgba(13, 110, 253, 0.1);
+  border-left: 3px solid #0d6efd;
+}
+
+.premium-badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 8px;
+  background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+  color: white;
+  border-radius: 12px;
+  font-size: 0.8em;
+}
+</style>
 <body>
-    <div class="background-blur"></div>
-    <div class="container glass-card">
-        <h1>PDF Axtarış Sistemi</h1>
+    <div class="premium-container">
+        <header class="premium-header">
+            <h1><i class="fas fa-crown"></i> Premium PDF Analiz Sistemi</h1>
+            <h2>Lahiyyə Ağayev Sadiq tərəfindən hazırlanmışdır</h2>
+            <p>PDF fayllarınızı dəqiq analiz edib, ağıllı sual-cavab xidməti təqdim edirik</p>
+        </header>
 
-        <div class="search-options">
-            <label><input type="checkbox" id="exact-match"> Dəqiq uyğunluq</label>
-            <label><input type="checkbox" id="word-order" checked> Söz sırası</label>
-            <label><input type="checkbox" id="stemming" checked> Kökə görə axtar</label>
-            <label><input type="checkbox" id="operators"> Axtarış operatorları (AND, OR, NOT)</label>
-        </div>
-        
-        <div class="upload-section">
-            <label for="pdf-upload" class="upload-label">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="17 8 12 3 7 8"></polyline>
-                    <line x1="12" y1="3" x2="12" y2="15"></line>
-                </svg>
-                <span>PDF Fayl(lar) Seçin</span>
-                <input type="file" id="pdf-upload" accept=".pdf" multiple>
-            </label>
-        </div>
-        
-        <div class="search-section">
-            <div class="search-input-container">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-                <input type="text" id="search-input" placeholder="Axtarış ifadəsini daxil edin..." autocomplete="off">
+        <div class="main-content">
+            <div class="upload-section">
+                <div class="dropzone" id="dropzone">
+                    <i class="fas fa-file-pdf fa-3x"></i>
+                    <p>PDF faylınızı buraya sürükləyin və ya klik edib seçin</p>
+                    <input type="file" id="fileInput" accept=".pdf">
+                </div>
+                <div class="progress-container" id="progressContainer">
+                    <div class="progress-bar" id="progressBar"></div>
+                    <span id="progressText">0%</span>
+                </div>
+            </div>
+
+            <div class="analysis-section" id="analysisSection">
+                <h2><i class="fas fa-chart-bar"></i> PDF Analiz Nəticələri</h2>
+                <div class="stats-container">
+                    <div class="stat-box">
+                        <span class="stat-value" id="pageCount">0</span>
+                        <span class="stat-label">Səhifə</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-value" id="wordCount">0</span>
+                        <span class="stat-label">Söz</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-value" id="sectionCount">0</span>
+                        <span class="stat-label">Bölmə</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-value" id="keywordCount">0</span>
+                        <span class="stat-label">Açar Söz</span>
+                    </div>
+                </div>
+                <div class="summary-box" id="summaryBox"></div>
+            </div>
+
+            <div class="qa-section" id="qaSection">
+                <h2><i class="fas fa-question-circle"></i> Sual-Cavab</h2>
+                <div class="chat-container">
+                    <div class="chat-messages" id="chatMessages"></div>
+                    <div class="chat-input">
+                        <input type="text" id="questionInput" placeholder="PDF ilə bağlı sualınızı yazın...">
+                        <button id="askButton"><i class="fas fa-paper-plane"></i> Göndər</button>
+                    </div>
+                </div>
             </div>
         </div>
-        
-        <div class="results-section">
-            <h2>Axtarış Nəticələri</h2>
-            <div id="results-container"></div>
-        </div>
+
+        <footer class="premium-footer">
+            <p>© 2023 Premium PDF Analiz Sistemi | Bütün hüquqlar qorunur</p>
+        </footer>
     </div>
 
-    <!-- PDF səhifə görünüşü -->
-    <div class="pdf-page-container" id="pdf-viewer">
-        <div class="pdf-page-content">
-            <div class="pdf-page-header">
-                <span id="pdf-viewer-title">PDF Səhifə</span>
-                <span class="pdf-page-close" id="pdf-viewer-close">&times;</span>
-            </div>
-            <div id="pdf-viewer-body"></div>
-            <div class="pdf-page-navigation">
-                <button class="pdf-page-btn" id="prev-page">Əvvəlki</button>
-                <span class="pdf-page-info" id="page-info">Səhifə 1 / 1</span>
-                <button class="pdf-page-btn" id="next-page">Növbəti</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <script >
         // PDF.js worker path
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
 
-        let pdfDocuments = [];
-        let searchResults = [];
-        let searchTimeout = null;
-        let searchOptions = {
-            exactMatch: false,
-            wordOrder: true,
-            useStemming: true,
-            searchOperators: true
+// Global variables
+let pdfDocument = null;
+let pdfText = "";
+let pdfMetadata = {
+    pages: 0,
+    words: 0,
+    sections: 0,
+    keywords: []
+};
+
+// DOM elements
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const progressContainer = document.getElementById('progressContainer');
+const progressBar = document.getElementById('progressBar');
+const progressText = document.getElementById('progressText');
+const analysisSection = document.getElementById('analysisSection');
+const qaSection = document.getElementById('qaSection');
+const pageCount = document.getElementById('pageCount');
+const wordCount = document.getElementById('wordCount');
+const sectionCount = document.getElementById('sectionCount');
+const keywordCount = document.getElementById('keywordCount');
+const summaryBox = document.getElementById('summaryBox');
+const chatMessages = document.getElementById('chatMessages');
+const questionInput = document.getElementById('questionInput');
+const askButton = document.getElementById('askButton');
+
+// Event listeners
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.style.borderColor = '#6a11cb';
+    dropzone.style.backgroundColor = 'rgba(106, 17, 203, 0.1)';
+});
+dropzone.addEventListener('dragleave', () => {
+    dropzone.style.borderColor = '#ddd';
+    dropzone.style.backgroundColor = 'rgba(106, 17, 203, 0.05)';
+});
+dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.style.borderColor = '#ddd';
+    dropzone.style.backgroundColor = 'rgba(106, 17, 203, 0.05)';
+    
+    if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        handleFileUpload(e.dataTransfer.files[0]);
+    }
+});
+
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) {
+        handleFileUpload(fileInput.files[0]);
+    }
+});
+
+askButton.addEventListener('click', askQuestion);
+questionInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        askQuestion();
+    }
+});
+
+// Handle PDF file upload
+async function handleFileUpload(file) {
+    if (file.type !== 'application/pdf') {
+        alert('Zəhmət olmasa PDF faylı yükləyin');
+        return;
+    }
+
+    // Show progress
+    dropzone.innerHTML = `<i class="fas fa-spinner fa-spin fa-3x"></i><p>${file.name} yüklənir...</p>`;
+    progressContainer.style.display = 'block';
+
+    try {
+        const fileReader = new FileReader();
+        
+        fileReader.onprogress = (e) => {
+            if (e.lengthComputable) {
+                const percentLoaded = Math.round((e.loaded / e.total) * 100);
+                progressBar.style.width = `${percentLoaded}%`;
+                progressText.textContent = `${percentLoaded}%`;
+            }
         };
 
-        // PDF səhifə görünüşü üçün dəyişənlər
-        let currentPdfDoc = null;
-        let currentPageNum = 1;
-        let currentPdfName = "";
+        fileReader.onload = async (e) => {
+            const typedArray = new Uint8Array(e.target.result);
+            await loadPdf(typedArray);
+        };
 
-        // HTML elementləri
-        const searchInput = document.getElementById('search-input');
-        const resultsContainer = document.getElementById('results-container');
-        const exactMatchCheckbox = document.getElementById('exact-match');
-        const wordOrderCheckbox = document.getElementById('word-order');
-        const stemmingCheckbox = document.getElementById('stemming');
-        const operatorsCheckbox = document.getElementById('operators');
-        const pdfViewer = document.getElementById('pdf-viewer');
-        const pdfViewerBody = document.getElementById('pdf-viewer-body');
-        const pdfViewerTitle = document.getElementById('pdf-viewer-title');
-        const pdfViewerClose = document.getElementById('pdf-viewer-close');
-        const prevPageBtn = document.getElementById('prev-page');
-        const nextPageBtn = document.getElementById('next-page');
-        const pageInfo = document.getElementById('page-info');
-
-        // Event listeners
-        document.getElementById('pdf-upload').addEventListener('change', handleUpload);
-        searchInput.addEventListener('input', handleSearchInput);
-        exactMatchCheckbox.addEventListener('change', updateSearchOptions);
-        wordOrderCheckbox.addEventListener('change', updateSearchOptions);
-        stemmingCheckbox.addEventListener('change', updateSearchOptions);
-        operatorsCheckbox.addEventListener('change', updateSearchOptions);
-        pdfViewerClose.addEventListener('click', closePdfViewer);
-        prevPageBtn.addEventListener('click', goToPrevPage);
-        nextPageBtn.addEventListener('click', goToNextPage);
-
-        // Səhifə naviqasiyası üçün klaviatura əmrləri
-        document.addEventListener('keydown', function(e) {
-            if (pdfViewer.style.display === 'flex') {
-                if (e.key === 'ArrowLeft') {
-                    goToPrevPage();
-                } else if (e.key === 'ArrowRight') {
-                    goToNextPage();
-                } else if (e.key === 'Escape') {
-                    closePdfViewer();
-                }
-            }
-        });
-
-        function updateSearchOptions() {
-            searchOptions = {
-                exactMatch: exactMatchCheckbox.checked,
-                wordOrder: wordOrderCheckbox.checked,
-                useStemming: stemmingCheckbox.checked,
-                searchOperators: operatorsCheckbox.checked
-            };
-            
-            if (searchInput.value.trim() !== '') {
-                handleSearchInput({ target: searchInput });
-            }
-        }
-
-        async function handleUpload(event) {
-            const files = event.target.files;
-            
-            if (files.length === 0) return;
-            
-            pdfDocuments = [];
-            resultsContainer.innerHTML = '<div class="loading">PDF fayl(lar) yüklənir...</div>';
-            
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                const arrayBuffer = await file.arrayBuffer();
-                
-                try {
-                    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
-                    pdfDocuments.push({
-                        name: file.name,
-                        document: pdf,
-                        file: file
-                    });
-                } catch (error) {
-                    console.error(`Error loading PDF ${file.name}:`, error);
-                }
-            }
-            
-            if (searchInput.value.trim() !== '') {
-                performSearch(searchInput.value.trim());
-            } else {
-                resultsContainer.innerHTML = '<p class="no-results">PDF fayl(lar) uğurla yükləndi. Axtarış etmək üçün yuxarıda yazın.</p>';
-            }
-        }
-
-        function handleSearchInput(event) {
-            const query = event.target.value.trim();
-            clearTimeout(searchTimeout);
-            
-            if (query === '') {
-                resultsContainer.innerHTML = '<p class="no-results">Axtarış nəticələri burada görünəcək</p>';
-                return;
-            }
-            
-            if (pdfDocuments.length === 0) {
-                resultsContainer.innerHTML = '<p class="no-results">Zəhmət olmasa əvvəlcə PDF fayl(lar) yükləyin</p>';
-                return;
-            }
-            
-            resultsContainer.innerHTML = '<div class="loading">Axtarılır...</div>';
-            
-            searchTimeout = setTimeout(() => performSearch(query), 300);
-        }
-
-        async function performSearch(query) {
-            searchResults = [];
-            
-            for (const pdfItem of pdfDocuments) {
-                const results = await searchInPdf(pdfItem.document, query);
-                if (results.length > 0) {
-                    searchResults.push({
-                        pdfName: pdfItem.name,
-                        pdfFile: pdfItem.file,
-                        results: results
-                    });
-                }
-            }
-            
-            displayResults();
-        }
-
-        async function searchInPdf(pdf, query) {
-            const results = [];
-            
-            if (searchOptions.searchOperators && hasSearchOperators(query)) {
-                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-                    const page = await pdf.getPage(pageNum);
-                    const textContent = await page.getTextContent();
-                    const pageText = textContent.items.map(item => item.str).join(' ');
-                    
-                    if (evaluateSearchExpression(pageText, query)) {
-                        results.push({
-                            page: pageNum,
-                            context: getContext(pageText, query)
-                        });
-                    }
-                }
-            } else {
-                const normalizedQuery = normalizeText(query);
-                const queryWords = normalizedQuery.split(/\s+/).filter(word => word.length > 0);
-                
-                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-                    const page = await pdf.getPage(pageNum);
-                    const textContent = await page.getTextContent();
-                    const pageText = textContent.items.map(item => item.str).join(' ');
-                    const normalizedPageText = normalizeText(pageText);
-                    
-                    if (searchOptions.exactMatch) {
-                        if (normalizedPageText.includes(normalizedQuery)) {
-                            results.push({
-                                page: pageNum,
-                                context: getContext(pageText, query)
-                            });
-                        }
-                    } else {
-                        const matched = advancedMatch(normalizedPageText, queryWords);
-                        if (matched) {
-                            results.push({
-                                page: pageNum,
-                                context: getContext(pageText, query)
-                            });
-                        }
-                    }
-                }
-            }
-            
-            return results;
-        }
-
-        function hasSearchOperators(query) {
-            return /(\bAND\b|\bOR\b|\bNOT\b|\(|\))/i.test(query);
-        }
-
-        function evaluateSearchExpression(text, expression) {
-            const normalizedText = normalizeText(text);
-            const tokens = tokenizeExpression(expression);
-            return evaluateTokens(normalizedText, tokens);
-        }
-
-        function tokenizeExpression(expression) {
-            const tokens = [];
-            const regex = /(AND|OR|NOT|\(|\)|\"[^\"]+\"|\S+)/gi;
-            let match;
-            
-            while ((match = regex.exec(expression)) !== null) {
-                tokens.push(match[1].toUpperCase());
-            }
-            
-            return tokens;
-        }
-
-        function evaluateTokens(text, tokens) {
-            let index = 0;
-            
-            function parseExpression() {
-                let left = parseTerm();
-                
-                while (index < tokens.length && (tokens[index] === 'AND' || tokens[index] === 'OR')) {
-                    const operator = tokens[index++];
-                    const right = parseTerm();
-                    
-                    if (operator === 'AND') {
-                        left = left && right;
-                    } else {
-                        left = left || right;
-                    }
-                }
-                
-                return left;
-            }
-            
-            function parseTerm() {
-                if (tokens[index] === 'NOT') {
-                    index++;
-                    return !parseFactor();
-                }
-                
-                return parseFactor();
-            }
-            
-            function parseFactor() {
-                if (tokens[index] === '(') {
-                    index++;
-                    const result = parseExpression();
-                    if (tokens[index] !== ')') throw new Error("Expected )");
-                    index++;
-                    return result;
-                }
-                
-                const token = tokens[index++];
-                if (token.startsWith('"') && token.endsWith('"')) {
-                    const phrase = normalizeText(token.slice(1, -1));
-                    return text.includes(phrase);
-                } else {
-                    const word = normalizeText(token);
-                    return text.includes(word);
-                }
-            }
-            
-            return parseExpression();
-        }
-
-        function advancedMatch(text, queryWords) {
-            if (searchOptions.wordOrder) {
-                const regex = new RegExp(queryWords.join(searchOptions.useStemming ? '\\b.*?\\b' : '.*?'), 'i');
-                return regex.test(text);
-            } else {
-                const requiredMatches = Math.ceil(queryWords.length * 0.6);
-                let matches = 0;
-                
-                for (const word of queryWords) {
-                    const stemmedWord = searchOptions.useStemming ? getStem(word) : word;
-                    const regex = new RegExp(`\\b${stemmedWord}\\b`, 'i');
-                    if (regex.test(text)) matches++;
-                }
-                
-                return matches >= requiredMatches;
-            }
-        }
-
-        function getStem(word) {
-            if (word.length < 4) return word;
-            
-            const suffixes = [
-                'lar', 'lər', 'dan', 'dən', 'tan', 'tən', 
-                'da', 'də', 'ta', 'tə', 'a', 'ə', 'ı', 'i', 'u', 'ü'
-            ];
-            
-            for (const suffix of suffixes) {
-                if (word.endsWith(suffix)) {
-                    return word.slice(0, -suffix.length);
-                }
-            }
-            
-            return word;
-        }
-
-        function normalizeText(text) {
-            return text.toLowerCase()
-                .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '')
-                .replace(/\s{2,}/g, ' ')
-                .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        }
-
-        function getContext(fullText, query) {
-            const sentences = fullText.split(/[.!?]+/);
-            
-            for (const sentence of sentences) {
-                if (searchOptions.searchOperators && hasSearchOperators(query)) {
-                    if (evaluateSearchExpression(sentence, query)) {
-                        return highlightMatches(sentence, query);
-                    }
-                } else {
-                    const normalizedSentence = normalizeText(sentence);
-                    const normalizedQuery = normalizeText(query);
-                    const queryWords = normalizedQuery.split(/\s+/);
-                    
-                    if (searchOptions.exactMatch) {
-                        if (normalizedSentence.includes(normalizedQuery)) {
-                            return highlightMatches(sentence, query);
-                        }
-                    } else if (advancedMatch(normalizedSentence, queryWords)) {
-                        return highlightMatches(sentence, query);
-                    }
-                }
-            }
-            
-            const index = findBestMatchPosition(fullText, query);
-            if (index !== -1) {
-                const start = Math.max(0, index - 50);
-                const end = Math.min(fullText.length, index + query.length + 50);
-                return '...' + highlightMatches(fullText.substring(start, end), query) + '...';
-            }
-            
-            return highlightMatches(fullText.substring(0, 150), query) + '...';
-        }
-
-        function findBestMatchPosition(text, query) {
-            if (searchOptions.exactMatch) {
-                return text.toLowerCase().indexOf(query.toLowerCase());
-            }
-            
-            const queryWords = normalizeText(query).split(/\s+/);
-            let bestIndex = -1;
-            let maxMatches = 0;
-            
-            for (let i = 0; i < text.length; i++) {
-                let matches = 0;
-                const substring = normalizeText(text.substr(i, query.length * 3));
-                
-                for (const word of queryWords) {
-                    if (substring.includes(word)) {
-                        matches++;
-                    }
-                }
-                
-                if (matches > maxMatches) {
-                    maxMatches = matches;
-                    bestIndex = i;
-                }
-            }
-            
-            return bestIndex;
-        }
-
-        function highlightMatches(text, query) {
-            if (searchOptions.searchOperators && hasSearchOperators(query)) {
-                const tokens = tokenizeExpression(query);
-                let result = text;
-                
-                for (const token of tokens) {
-                    if (!['AND', 'OR', 'NOT', '(', ')'].includes(token)) {
-                        const cleanToken = token.replace(/"/g, '');
-                        const regex = new RegExp(`(${escapeRegExp(cleanToken)})`, 'gi');
-                        result = result.replace(regex, '<span class="highlight">$1</span>');
-                    }
-                }
-                
-                return result;
-            } else {
-                const queryWords = query.split(/\s+/);
-                let result = text;
-                
-                for (const word of queryWords) {
-                    const regex = new RegExp(`(${escapeRegExp(word)})`, 'gi');
-                    result = result.replace(regex, '<span class="highlight">$1</span>');
-                }
-                
-                return result;
-            }
-        }
-
-        function escapeRegExp(string) {
-            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        }
-
-        function displayResults() {
-            if (searchResults.length === 0) {
-                resultsContainer.innerHTML = '<p class="no-results">Axtarış nəticələri tapılmadı</p>';
-                return;
-            }
-            
-            let html = '';
-            
-            for (const pdfResult of searchResults) {
-                html += `<h3>${pdfResult.pdfName}</h3>`;
-                
-                for (const result of pdfResult.results) {
-                    html += `
-                        <div class="result-item" data-pdf-name="${pdfResult.pdfName}" data-page="${result.page}">
-                            <p><span class="page-number">Səhifə ${result.page}</span></p>
-                            <p>${result.context}</p>
-                        </div>
-                    `;
-                }
-            }
-            
-            resultsContainer.innerHTML = html;
-            
-            document.querySelectorAll('.result-item').forEach(item => {
-                item.addEventListener('click', async function() {
-                    const pdfName = this.getAttribute('data-pdf-name');
-                    const pageNum = parseInt(this.getAttribute('data-page'));
-                    const pdfItem = searchResults.find(item => item.pdfName === pdfName);
-                    if (!pdfItem) return;
-                    
-                    await openPdfPage(pdfItem.pdfFile, pageNum, pdfName);
-                });
-            });
-        }
-
-        async function openPdfPage(pdfFile, pageNum, pdfName) {
-            currentPdfName = pdfName;
-            currentPageNum = pageNum;
-            
-            const arrayBuffer = await pdfFile.arrayBuffer();
-            currentPdfDoc = await pdfjsLib.getDocument(arrayBuffer).promise;
-            
-            pdfViewerTitle.textContent = `${pdfName} - Səhifə ${pageNum}`;
-            await renderPage(pageNum);
-            pdfViewer.style.display = 'flex';
-            document.body.style.overflow = 'hidden';
-        }
-
-        async function renderPage(pageNum) {
-    pdfViewerBody.innerHTML = '';
-    const page = await currentPdfDoc.getPage(pageNum);
-    
-    // Ekran ölçüsünə uyğun scale hesablanması
-    const viewport = page.getViewport({ 
-        scale: Math.min(
-            window.innerWidth / page.getViewport({ scale: 1 }).width,
-            window.innerHeight / page.getViewport({ scale: 1 }).height
-        ) * 0.9 // 90% ekran ölçüsü
-    });
-    
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    
-    // Yüksək keyfiyyət üçün canvas ölçüləri
-    canvas.height = viewport.height;
-    canvas.width = viewport.width;
-    canvas.style.width = '100%';
-    canvas.style.height = 'auto';
-    
-    // Yüksək DPI dəstəyi
-    const outputScale = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(viewport.width * outputScale);
-    canvas.height = Math.floor(viewport.height * outputScale);
-    context.scale(outputScale, outputScale);
-    
-    pdfViewerBody.appendChild(canvas);
-    
-    await page.render({
-        canvasContext: context,
-        viewport: viewport,
-        intent: 'print' // Yüksək keyfiyyətli render
-    }).promise;
-    
-    pageInfo.textContent = `Səhifə ${pageNum} / ${currentPdfDoc.numPages}`;
-    prevPageBtn.disabled = pageNum <= 1;
-    nextPageBtn.disabled = pageNum >= currentPdfDoc.numPages;
+        fileReader.readAsArrayBuffer(file);
+    } catch (error) {
+        console.error('PDF yüklənmə xətası:', error);
+        alert('PDF yüklənərkən xəta baş verdi');
+        resetUI();
+    }
 }
 
-        function goToPrevPage() {
-            if (currentPageNum > 1) {
-                currentPageNum--;
-                renderPage(currentPageNum);
-            }
+// Load and parse PDF
+async function loadPdf(data) {
+    try {
+        // Load the PDF
+        const loadingTask = pdfjsLib.getDocument(data);
+        pdfDocument = await loadingTask.promise;
+        
+        // Extract text from all pages
+        pdfText = "";
+        pdfMetadata.pages = pdfDocument.numPages;
+        
+        for (let i = 1; i <= pdfDocument.numPages; i++) {
+            const page = await pdfDocument.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(' ');
+            pdfText += pageText + "\n\n";
+            
+            // Update progress
+            const percentComplete = Math.round((i / pdfDocument.numPages) * 100);
+            progressBar.style.width = `${percentComplete}%`;
+            progressText.textContent = `${percentComplete}%`;
         }
+        
+        // Analyze the text
+        analyzePdfText();
+        
+        // Update UI
+        progressContainer.style.display = 'none';
+        dropzone.innerHTML = `
+            <i class="fas fa-check-circle fa-3x" style="color: #28a745"></i>
+            <p>PDF uğurla yükləndi!</p>
+            <p class="small">${pdfMetadata.pages} səhifə, ${pdfMetadata.words} söz</p>
+        `;
+        
+        // Show analysis and QA sections
+        analysisSection.style.display = 'block';
+        qaSection.style.display = 'block';
+        
+        // Add a welcome message to the chat
+        addBotMessage("PDF uğurla yükləndi! İndi sənə bu sənəd haqqında suallar verə bilərəm. Nə soruşmaq istəyirsən?");
+    } catch (error) {
+        console.error('PDF oxuma xətası:', error);
+        alert('PDF oxunarkən xəta baş verdi');
+        resetUI();
+    }
+}
 
-        function goToNextPage() {
-            if (currentPageNum < currentPdfDoc.numPages) {
-                currentPageNum++;
-                renderPage(currentPageNum);
-            }
+// Analyze the extracted PDF text
+function analyzePdfText() {
+    // Basic statistics
+    pdfMetadata.words = pdfText.split(/\s+/).filter(word => word.length > 0).length;
+    
+    // Detect sections (assuming headings are in all caps or followed by colons)
+    const sectionMatches = pdfText.match(/\n[A-Z][A-Z\s]+\n|^[A-Z][A-Z\s]+\n|\n.+\:\n/g);
+    pdfMetadata.sections = sectionMatches ? sectionMatches.length : 0;
+    
+    // Extract keywords (simple approach - most frequent words excluding stop words)
+    const words = pdfText.toLowerCase().split(/\s+/);
+    const wordCounts = {};
+    
+    const stopWords = new Set(['the', 'and', 'of', 'to', 'in', 'a', 'is', 'that', 'for', 'it', 'as', 'with', 'on', 'be', 'this', 'by', 'are', 'or']);
+    
+    words.forEach(word => {
+        word = word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '');
+        if (word.length > 3 && !stopWords.has(word)) {
+            wordCounts[word] = (wordCounts[word] || 0) + 1;
         }
+    });
+    
+    // Get top 10 keywords
+    pdfMetadata.keywords = Object.entries(wordCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(entry => entry[0]);
+    
+    // Generate a simple summary (first 200 characters)
+    const summary = pdfText.substring(0, 200).replace(/\n/g, ' ') + (pdfText.length > 200 ? '...' : '');
+    
+    // Update UI with analysis results
+    pageCount.textContent = pdfMetadata.pages;
+    wordCount.textContent = pdfMetadata.words.toLocaleString();
+    sectionCount.textContent = pdfMetadata.sections;
+    keywordCount.textContent = pdfMetadata.keywords.length;
+    
+    summaryBox.innerHTML = `
+        <h3><i class="fas fa-file-alt"></i> Xülasə</h3>
+        <p>${summary}</p>
+        <div class="keywords">
+            <h4><i class="fas fa-key"></i> Açar sözlər</h4>
+            <div class="keyword-tags">
+                ${pdfMetadata.keywords.map(keyword => `<span class="keyword-tag">${keyword}</span>`).join('')}
+            </div>
+        </div>
+    `;
+}
 
-        function closePdfViewer() {
-            pdfViewer.style.display = 'none';
-            document.body.style.overflow = 'auto';
+// Handle asking a question
+function askQuestion() {
+    const question = questionInput.value.trim();
+    if (!question) return;
+    
+    // Add user message to chat
+    addUserMessage(question);
+    questionInput.value = '';
+    
+    // Show typing indicator
+    const typingIndicator = document.createElement('div');
+    typingIndicator.className = 'message bot-message typing';
+    typingIndicator.innerHTML = '<i class="fas fa-ellipsis-h"></i>';
+    chatMessages.appendChild(typingIndicator);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Simulate processing delay
+    setTimeout(() => {
+        // Remove typing indicator
+        chatMessages.removeChild(typingIndicator);
+        
+        // Generate answer (in a real app, this would call an API)
+        const answer = generateAnswer(question);
+        addBotMessage(answer.text, answer.citation);
+    }, 1500);
+}
+
+// Generate an answer based on the PDF text (simplified)
+function generateAnswer(question) {
+    // Convert to lowercase for case-insensitive search
+    const lowerQuestion = question.toLowerCase();
+    const lowerPdfText = pdfText.toLowerCase();
+    
+    // Try to find the most relevant sentence
+    let bestMatch = "";
+    let bestScore = 0;
+    let citationPage = 1;
+    
+    // Split PDF text into sentences
+    const sentences = pdfText.split(/[.!?]+/);
+    const lowerSentences = lowerPdfText.split(/[.!?]+/);
+    
+    // Score each sentence based on keyword matches
+    for (let i = 0; i < sentences.length; i++) {
+        if (!sentences[i].trim()) continue;
+        
+        const sentence = sentences[i].trim();
+        const lowerSentence = lowerSentences[i].trim();
+        
+        // Simple scoring - count matching words
+        const questionWords = lowerQuestion.split(/\s+/);
+        const sentenceWords = lowerSentence.split(/\s+/);
+        
+        let score = 0;
+        questionWords.forEach(qWord => {
+            if (sentenceWords.includes(qWord)) {
+                score++;
+            }
+        });
+        
+        // Prefer longer matches with more keywords
+        if (score > bestScore || (score === bestScore && sentence.length > bestMatch.length)) {
+            bestScore = score;
+            bestMatch = sentence;
+            
+            // Estimate page number (very rough approximation)
+            const textPosition = lowerPdfText.indexOf(lowerSentence);
+            citationPage = Math.max(1, Math.floor(textPosition / lowerPdfText.length * pdfMetadata.pages));
         }
+    }
+    
+    if (bestMatch) {
+        return {
+            text: `Sualınıza əsasən: ${bestMatch}`,
+            citation: `Səhifə ${citationPage}`
+        };
+    } else {
+        return {
+            text: "PDF-də bu sualınıza dəqiq cavab tapa bilmədim. Daha ətraflı və ya fərqli şəkildə soruşmağa çalışa bilərsiniz.",
+            citation: ""
+        };
+    }
+}
+
+// Add a user message to the chat
+function addUserMessage(text) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message user-message';
+    messageDiv.textContent = text;
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// Add a bot message to the chat
+function addBotMessage(text, citation = "") {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message bot-message';
+    messageDiv.innerHTML = text;
+    
+    if (citation) {
+        const citationDiv = document.createElement('div');
+        citationDiv.className = 'citation';
+        citationDiv.innerHTML = `<i class="fas fa-bookmark"></i> ${citation}`;
+        messageDiv.appendChild(citationDiv);
+    }
+    
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// Reset UI
+function resetUI() {
+    dropzone.innerHTML = `
+        <i class="fas fa-file-pdf fa-3x"></i>
+        <p>PDF faylınızı buraya sürükləyin və ya klik edib seçin</p>
+        <input type="file" id="fileInput" accept=".pdf">
+    `;
+    progressContainer.style.display = 'none';
+    analysisSection.style.display = 'none';
+    qaSection.style.display = 'none';
+    pdfDocument = null;
+    pdfText = "";
+    pdfMetadata = {
+        pages: 0,
+        words: 0,
+        sections: 0,
+        keywords: []
+    };
+    chatMessages.innerHTML = '';
+}
     </script>
 </body>
 </html>
